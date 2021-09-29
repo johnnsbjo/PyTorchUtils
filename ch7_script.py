@@ -13,24 +13,6 @@ torch.manual_seed(123)
 
 #%%
 
-def oldloop():
-  for i in range(1, epochs+1):
-    for train, val in zip(train_loader, val_loader):
-      train_labels = torch.stack((((train[1] - 1)**2), train[1]), dim=1).to(dtype=torch.float, device='cuda')
-      val_labels = torch.stack((((val[1] - 1)**2), val[1]), dim=1).to(dtype=torch.float, device='cuda')
-
-      train_output = model.model(train[0].view(train[0].shape[0], -1))
-      train_loss = loss_fn(train_output, train_labels)
-
-      val_output = model.model(val[0].view(val[0].shape[0], -1))
-      val_loss = loss_fn(val_output, val_labels)
-
-      optimizer.zero_grad()
-      train_loss.backward()
-      optimizer.step()
-    if i % round(epochs/10) == 0:
-      print(f"Epoch: {i}, Train Loss: {train_loss}, Val Loss: {val_loss}")
-
 class Net(nn.Module):
   def __init__(self, n_chanels):
     super().__init__()
@@ -61,26 +43,6 @@ class Net(nn.Module):
     out = out.view(-1, 8 * 4 * 4) 
     out = self.act4(self.fc1(out))
     out = self.fc2(out)
-    return out
-
-
-#%%
-class CustomModel(nn.Module):
-  def __init__(self):
-    super().__init__()
-    self.linear1 = nn.Linear(3072, 3072)
-    self.tanh1 = nn.Tanh()
-    self.linear2 = nn.Linear(3072, 2)
-    self.tanh2 = nn.Tanh()
-
-  def to(self, *args, **kwargs):
-    return super().to(*args, **kwargs)
-
-  def forward(self, x):
-    out = self.linear1(x)
-    out = self.tanh1(out)
-    out = self.linear2(out)
-    out = self.tanh2(out)
     return out
 
 
