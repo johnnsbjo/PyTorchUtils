@@ -17,10 +17,12 @@ class Net(nn.Module):
   def __init__(self, n_chanels):
     super().__init__()
     self.conv1 = nn.Conv2d(3, n_chanels, kernel_size=3, padding=1)
+    self.batch_norm1 = nn.BatchNorm2d(num_features=n_chanels)
     self.act1 = nn.ReLU()
     self.pool1 = nn.MaxPool2d(2)
     self.conv1_dropout = nn.Dropout2d(p=0.2)
     self.conv2 = nn.Conv2d(n_chanels, n_chanels * 2, kernel_size=3, padding=1)
+    self.batch_norm2 = nn.BatchNorm2d(num_features= 2 * n_chanels)
     self.act2 = nn.ReLU()
     self.pool2 = nn.MaxPool2d(2)
     self.conv2_dropout = nn.Dropout2d(p=0.1)
@@ -34,10 +36,22 @@ class Net(nn.Module):
   def to(self, *args, **kwargs):
     return super().to(*args, **kwargs)
 
+
+class a_b_c_d_Net(Net): #activation -> batch -> conv -> dropout
+  
+  def __init__(self, n_chanels):
+    super().__init__(n_chanels)
+
   def forward(self, x):
-    out = self.pool1(self.act1(self.conv1(x)))
+    out = self.pool1(
+      self.act1(
+        self.batch_norm1(
+          self.conv1(x))))
     out = self.conv1_dropout(out)
-    out = self.pool2(self.act2(self.conv2(out)))
+    out = self.pool2(
+      self.act2(
+        self.batch_norm2(
+          self.conv2(out))))
     out = self.conv2_dropout(out)
     out = self.pool3(self.act3(self.conv3(out)))
     out = out.view(-1, 8 * 4 * 4) 
@@ -45,6 +59,66 @@ class Net(nn.Module):
     out = self.fc2(out)
     return out
 
+class a_b_d_c_Net(Net): #activation -> batch -> dropout -> conv 
+  
+  def __init__(self, n_chanels):
+    super().__init__(n_chanels)
+
+  def forward(self, x):
+    out = self.pool1(
+      self.act1(
+        self.batch_norm1(
+          self.conv1_dropout(
+            self.conv1(x)))))
+    out = self.pool2(
+      self.act2(
+        self.batch_norm2(
+          self.conv2_dropout(
+            self.conv2(out)))))
+    out = self.pool3(self.act3(self.conv3(out)))
+    out = out.view(-1, 8 * 4 * 4) 
+    out = self.act4(self.fc1(out))
+    out = self.fc2(out)
+    return out
+
+
+class a_b_c_Net(Net): #activation -> batch -> conv
+  
+  def __init__(self, n_chanels):
+    super().__init__(n_chanels)
+
+  def forward(self, x):
+    out = self.pool1(
+      self.act1(
+        self.batch_norm1(
+          self.conv1(x))))
+    out = self.pool2(
+      self.act2(
+        self.batch_norm2(
+          self.conv2(out))))
+    out = self.pool3(self.act3(self.conv3(out)))
+    out = out.view(-1, 8 * 4 * 4) 
+    out = self.act4(self.fc1(out))
+    out = self.fc2(out)
+    return out
+
+class a_c_Net(Net): #activation -> conv
+  
+  def __init__(self, n_chanels):
+    super().__init__(n_chanels)
+
+  def forward(self, x):
+    out = self.pool1(
+      self.act1(
+          self.conv1(x)))
+    out = self.pool2(
+      self.act2(
+          self.conv2(out)))
+    out = self.pool3(self.act3(self.conv3(out)))
+    out = out.view(-1, 8 * 4 * 4) 
+    out = self.act4(self.fc1(out))
+    out = self.fc2(out)
+    return out
 
 def training_loop(n_epochs: int, model, train_loader: DataLoader, 
   optimizer, loss_fn, device, val_loader=False, verbose=False, **kwargs) -> OrderedDict:
@@ -108,7 +182,7 @@ class_names = ['airplane','automobile','bird','cat','deer',
                
 data_path = '../data-unversioned/p1ch7/'
 _device = (torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'))
-
+#%%
 #%%
 means = torch.tensor((0.4915, 0.4823, 0.4468)).to(device=_device)
 
@@ -158,46 +232,95 @@ train_loader : DataLoader = DataLoader(tensor_cifar2_ds_train,
                                            
 val_loader : DataLoader = DataLoader(tensor_cifar2_ds_val, 
                                           batch_size=batch_size,
-                                          shuffle=False)                         
-# %%
-model = Net(n_chanels=64)
-model = model.to(device=_device)
+                                          shuffle=False)
+#%%
+model_a_c = a_c_Net(n_chanels=64)
+model_a_c = model_a_c.to(device=_device)
+optimizer_a_c = torch.optim.Adam(model_a_c.parameters(), lr=1e-4)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+                                                             
+model_a_b_c = a_b_c_Net(n_chanels=64)
+model_a_b_c = model_a_b_c.to(device=_device)
+optimizer_a_b_c = torch.optim.Adam(model_a_b_c.parameters(), lr=1e-4)
+
+model_a_b_d_c = a_b_d_c_Net(n_chanels=64)
+model_a_b_d_c = model_a_b_d_c.to(device=_device)
+optimizer_a_b_d_c = torch.optim.Adam(model_a_b_d_c.parameters(), lr=1e-4)
+
+model_a_b_c_d = a_b_c_d_Net(n_chanels=64)
+model_a_b_c_d = model_a_b_c_d.to(device=_device)
+optimizer_a_b_c_d = torch.optim.Adam(model_a_b_c_d.parameters(), lr=1e-4)
+
+
 # %%
-epochs = 500
+epochs = 300
 
 loss_fn = nn.CrossEntropyLoss()
 
-result = training_loop(
+result_a_c = training_loop(
   n_epochs=epochs,
   train_loader=train_loader,
   val_loader=val_loader,
-  model=model,
+  model=model_a_c,
   loss_fn=loss_fn,
-  optimizer=optimizer,
+  optimizer=optimizer_a_c,
   device = _device,
-  verbose=True
+  verbose=False
 )
 
+result_a_b_c = training_loop(
+  n_epochs=epochs,
+  train_loader=train_loader,
+  val_loader=val_loader,
+  model=model_a_b_c,
+  loss_fn=loss_fn,
+  optimizer=optimizer_a_b_c,
+  device = _device,
+  verbose=False
+)
+
+result_a_b_c_d = training_loop(
+  n_epochs=epochs,
+  train_loader=train_loader,
+  val_loader=val_loader,
+  model=model_a_b_c_d,
+  loss_fn=loss_fn,
+  optimizer=optimizer_a_b_c_d,
+  device = _device,
+  verbose=False
+)
+
+result_a_b_d_c = training_loop(
+  n_epochs=epochs,
+  train_loader=train_loader,
+  val_loader=val_loader,
+  model=model_a_b_d_c,
+  loss_fn=loss_fn,
+  optimizer=optimizer_a_b_d_c,
+  device = _device,
+  verbose=False
+)
+
+torch.save(result_a_c, data_path + 'birds_vs_airplanes_a_c.pt')
+torch.save(result_a_b_c, data_path + 'birds_vs_airplanes_a_b_c.pt')
+torch.save(result_a_b_c_d, data_path + 'birds_vs_airplanes_a_b_c_d.pt')
+torch.save(result_a_b_d_c, data_path + 'birds_vs_airplanes_a_b_d_c.pt')
 
 #%%
+def evaluate(model, state_dict, val_loader):
+  with torch.no_grad():
+    correct = 0
+    total = 0
+    for imgs, labels in val_loader:
+      labels = labels.to(device='cuda')
+      batch_size = imgs.shape[0]
+      val_model = model
+      val_model.load_state_dict(state_dict)
+      val_model = val_model.to(device=_device)
+      outputs = val_model(imgs)
+      _, predicted = torch.max(outputs,dim=1)
+      total += labels.shape[0]
+      correct += int((predicted == labels).sum())
+  print(correct, total, correct/total)
 
 # %%
-correct = 0
-total = 0
-
-with torch.no_grad():
-  for imgs, labels in val_loader:
-    labels = labels.to(device='cuda')
-    batch_size = imgs.shape[0]
-    val_model = Net(n_chanels=64)
-    val_model.load_state_dict(result)
-    val_model = val_model.to(device=_device)
-    outputs = val_model(imgs)
-    _, predicted = torch.max(outputs,dim=1)
-    total += labels.shape[0]
-    correct += int((predicted == labels).sum())
-
-print(correct, total, correct/total)
-torch.save(model.state_dict(), data_path + 'birds_vs_airplanes.pt')
